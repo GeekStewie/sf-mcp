@@ -179,5 +179,10 @@ uv run ruff format src/
 ```
 
 ## License
+This project is a personal open-source project, released under the Apache License, Version 2.0.
 
-Apache 2.0. See [LICENSE](LICENSE).
+You are free to use, modify, and distribute this software in accordance with the terms of the license. It is provided as-is, without warranty of any kind — express or implied — including but not limited to warranties of merchantability or fitness for a particular purpose. Use it at your own risk.
+
+This project is not an official Salesforce product and is not affiliated with or endorsed by Salesforce, Inc. in any way.
+
+See the LICENSE file for the full license text.
