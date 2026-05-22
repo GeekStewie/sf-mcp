@@ -30,7 +30,8 @@ uv add sf-mcp
 
 ```bash
 claude mcp add sf-mcp -- uvx sf-mcp
-# bind a default org alias so tools don't have to be told each time:
+# Optional: pin a specific org alias for this MCP client. Otherwise sf-mcp
+# uses SF_TARGET_ORG or the alias from `sf config get target-org`.
 claude mcp add sf-mcp --env SF_MCP_ALIAS=my-org -- uvx sf-mcp
 ```
 
@@ -89,7 +90,13 @@ SF_MCP_ALIAS = "my-org"
 
 ## Tools
 
-Every tool accepts an optional `target_org` argument; when omitted the server falls back to the `SF_MCP_ALIAS` environment variable, then errors out if neither is set.
+Every tool accepts an optional `target_org` argument. Resolution order when it's omitted:
+
+1. `SF_MCP_ALIAS` env var (explicit MCP-side override)
+2. `SF_TARGET_ORG` env var (`sf` CLI's own standard)
+3. `target-org` from the project-local `.sf/config.json` or the global `~/.sf/config.json` — i.e. whatever `sf config get target-org` would return
+
+So if you've already run `sf config set target-org=my-org`, you don't need to set anything for sf-mcp.
 
 ### sf CLI (`sf_*`)
 
@@ -156,9 +163,12 @@ Requires `SF_MODELS_CLIENT_ID` and `SF_MODELS_CLIENT_SECRET` in the environment 
 
 | Env var | Purpose |
 | --- | --- |
-| `SF_MCP_ALIAS` | Default org alias when a tool call doesn't specify one |
+| `SF_MCP_ALIAS` | Optional. Highest-priority default org alias; overrides `SF_TARGET_ORG` and the sf CLI's own configured `target-org`. |
+| `SF_TARGET_ORG` | Optional. Standard sf CLI env var; honoured when `SF_MCP_ALIAS` is unset. |
 | `SF_MODELS_CLIENT_ID` / `SF_MODELS_CLIENT_SECRET` | Required for Einstein Models tools |
 | `SF_MODELS_INSTANCE_URL` | Override the My Domain used for Models OAuth (defaults to the alias's instance URL) |
+
+When neither env var is set and no `target_org` is passed, sf-mcp defers to `sf config get target-org` (project-local `.sf/config.json` first, then global `~/.sf/config.json`).
 
 ## Local development
 

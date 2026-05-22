@@ -61,20 +61,23 @@ async def test_tools_are_registered():
     assert not missing, f"Missing tools: {missing}"
 
 
-def test_resolve_alias_requires_alias_or_env(monkeypatch):
-    """resolve_alias raises if neither argument nor env var is set."""
-    from salesforce_py.exceptions import SalesforcePyError
-
+def test_resolve_alias_returns_none_when_unset(monkeypatch):
+    """When nothing is set, resolve_alias returns None so the sf CLI applies its own default."""
     from sf_mcp._context import org_context
 
     monkeypatch.delenv("SF_MCP_ALIAS", raising=False)
-    with pytest.raises(SalesforcePyError):
-        org_context.resolve_alias(None)
+    monkeypatch.delenv("SF_TARGET_ORG", raising=False)
+    assert org_context.resolve_alias(None) is None
 
 
-def test_resolve_alias_prefers_argument_over_env(monkeypatch):
+def test_resolve_alias_priority(monkeypatch):
+    """target_org arg > SF_MCP_ALIAS > SF_TARGET_ORG."""
     from sf_mcp._context import org_context
 
-    monkeypatch.setenv("SF_MCP_ALIAS", "from-env")
+    monkeypatch.setenv("SF_MCP_ALIAS", "from-mcp-alias")
+    monkeypatch.setenv("SF_TARGET_ORG", "from-sf-target-org")
     assert org_context.resolve_alias("from-arg") == "from-arg"
-    assert org_context.resolve_alias(None) == "from-env"
+    assert org_context.resolve_alias(None) == "from-mcp-alias"
+
+    monkeypatch.delenv("SF_MCP_ALIAS")
+    assert org_context.resolve_alias(None) == "from-sf-target-org"

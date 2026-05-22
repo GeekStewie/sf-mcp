@@ -27,6 +27,8 @@ if TYPE_CHECKING:
 
 
 DEFAULT_ALIAS_ENV = "SF_MCP_ALIAS"
+SF_CLI_TARGET_ORG_ENV = "SF_TARGET_ORG"
+DEFAULT_CACHE_KEY = "__default__"
 
 
 class OrgContext:
@@ -36,36 +38,65 @@ class OrgContext:
         self._creds: dict[str, tuple[str, str, str]] = {}
         self._lock = asyncio.Lock()
 
-    def resolve_alias(self, target_org: str | None) -> str:
-        """Pick the alias from the call argument or the ``SF_MCP_ALIAS`` env var."""
-        alias = target_org or os.environ.get(DEFAULT_ALIAS_ENV)
-        if not alias:
-            raise SalesforcePyError(
-                "No Salesforce org alias provided. Pass `target_org` to the tool "
-                f"or set the {DEFAULT_ALIAS_ENV} environment variable."
-            )
-        return alias
+    def resolve_alias(self, target_org: str | None) -> str | None:
+        """Resolve the org alias for a tool call.
 
-    async def creds(self, alias: str) -> tuple[str, str, str]:
-        """Return cached ``(instance_url, access_token, username)`` for ``alias``."""
-        if alias in self._creds:
-            return self._creds[alias]
+        Priority:
+          1. ``target_org`` argument
+          2. ``SF_MCP_ALIAS`` env var (explicit MCP-side override)
+          3. ``SF_TARGET_ORG`` env var (sf CLI's own standard)
+          4. ``None`` — defer to whatever ``sf`` itself is configured to use
+             (``target-org`` in the project-local ``.sf/config.json`` or the
+             global ``~/.sf/config.json``).
+        """
+        return (
+            target_org
+            or os.environ.get(DEFAULT_ALIAS_ENV)
+            or os.environ.get(SF_CLI_TARGET_ORG_ENV)
+            or None
+        )
+
+    async def creds(self, alias: str | None) -> tuple[str, str, str]:
+        """Return cached ``(instance_url, access_token, username)`` for ``alias``.
+
+        Pass ``None`` to use the sf CLI's configured default org. The result is
+        cached twice — once under the sentinel ``__default__`` key so the next
+        ``None`` lookup is a hit, and once under the actual resolved alias so an
+        explicit call for the same org also hits.
+        """
+        cache_key = alias or DEFAULT_CACHE_KEY
+        if cache_key in self._creds:
+            return self._creds[cache_key]
         async with self._lock:
-            if alias in self._creds:
-                return self._creds[alias]
+            if cache_key in self._creds:
+                return self._creds[cache_key]
             from salesforce_py.sf import SFOrg
 
             org = SFOrg(target_org=alias)
             await asyncio.to_thread(org._ensure_connected)
-            self._creds[alias] = (org.instance_url, org.access_token, org.username)
-            return self._creds[alias]
+            if not org.instance_url or not org.access_token:
+                raise SalesforcePyError(
+                    "Could not resolve a Salesforce org from the sf CLI. Pass "
+                    "`target_org` to the tool, set SF_MCP_ALIAS or "
+                    "SF_TARGET_ORG, or run `sf config set "
+                    "target-org=<alias>`."
+                )
+            creds = (org.instance_url, org.access_token, org.username)
+            self._creds[cache_key] = creds
+            if alias is None and org.alias:
+                self._creds[org.alias] = creds
+            return creds
 
-    def invalidate(self, alias: str) -> None:
+    def invalidate(self, alias: str | None) -> None:
         """Drop cached creds for ``alias`` (called automatically after a 401)."""
-        self._creds.pop(alias, None)
+        self._creds.pop(alias or DEFAULT_CACHE_KEY, None)
 
     def task(self, target_org: str | None) -> SFOrgTask:
-        """Return a fresh :class:`SFOrgTask` bound to the resolved alias."""
+        """Return a fresh :class:`SFOrgTask` bound to the resolved alias.
+
+        Passes ``None`` straight through to ``SFOrgTask`` when no alias is
+        configured, so the underlying ``sf`` CLI applies its own default.
+        """
         from salesforce_py.sf import SFOrgTask
 
         return SFOrgTask(target_org=self.resolve_alias(target_org))
