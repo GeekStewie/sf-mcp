@@ -19,7 +19,7 @@ from sf_mcp.server import mcp
 
 
 @mcp.tool
-async def sf_org_list(target_org: str | None = None) -> dict[str, Any]:
+async def sf_org_list(target_org: str | None = None) -> list[dict[str, Any]]:
     """List every Salesforce org authenticated with the local ``sf`` CLI.
 
     Equivalent to ``sf org list --json``. ``target_org`` is unused by the

@@ -1,0 +1,62 @@
+name: Health Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: health-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  health-check:
+    name: Lint, type-check, security scan, tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout sf-mcp
+        uses: actions/checkout@v4
+        with:
+          path: sf-mcp
+
+      - name: Checkout salesforce-py (sibling for [tool.uv.sources])
+        uses: actions/checkout@v4
+        with:
+          repository: geekstewie/salesforce-py
+          path: salesforce-py
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+        working-directory: sf-mcp
+
+      - name: Install project (dev extras)
+        run: uv sync --extra dev
+        working-directory: sf-mcp
+
+      - name: Ruff lint
+        run: uv run ruff check src/
+        working-directory: sf-mcp
+
+      - name: Ruff format check
+        run: uv run ruff format --check src/
+        working-directory: sf-mcp
+
+      - name: Type check (ty)
+        run: uv run ty check src/
+        working-directory: sf-mcp
+
+      - name: Security scan (bandit)
+        run: uv run bandit -r src/ -c pyproject.toml
+        working-directory: sf-mcp
+
+      - name: Run tests (pytest)
+        run: uv run pytest
+        working-directory: sf-mcp

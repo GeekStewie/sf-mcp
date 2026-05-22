@@ -1,0 +1,85 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build wheel and publish GitHub release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout sf-mcp
+        uses: actions/checkout@v4
+        with:
+          path: sf-mcp
+          fetch-depth: 0
+
+      - name: Read version
+        id: version
+        working-directory: sf-mcp
+        run: |
+          VERSION=$(grep -oE '"[0-9]+\.[0-9]+\.[0-9]+"' src/sf_mcp/_version.py | tr -d '"')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check if tag already exists
+        id: check_tag
+        working-directory: sf-mcp
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if git rev-parse "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Tag $TAG already exists - skipping release."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Tag $TAG does not exist - proceeding with release."
+          fi
+
+      - name: Checkout salesforce-py (sibling for [tool.uv.sources])
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: actions/checkout@v4
+        with:
+          repository: geekstewie/salesforce-py
+          path: salesforce-py
+
+      - name: Install uv
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        if: steps.check_tag.outputs.exists == 'false'
+        run: uv python install 3.12
+        working-directory: sf-mcp
+
+      - name: Build distribution
+        if: steps.check_tag.outputs.exists == 'false'
+        run: uv build
+        working-directory: sf-mcp
+
+      - name: Create GitHub release
+        if: steps.check_tag.outputs.exists == 'false'
+        working-directory: sf-mcp
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: |
+          gh release create "$TAG" \
+            --title "v$VERSION" \
+            --generate-notes \
+            --target "$COMMIT_SHA" \
+            dist/*
