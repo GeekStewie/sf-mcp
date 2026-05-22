@@ -3,8 +3,18 @@ name: Health Check
 on:
   push:
     branches: [main]
+    paths:
+      - "**.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/health-check.yml"
   pull_request:
     branches: [main]
+    paths:
+      - "**.py"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/health-check.yml"
 
 concurrency:
   group: health-check-${{ github.ref }}

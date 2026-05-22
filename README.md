@@ -30,8 +30,11 @@ uv add sf-mcp
 
 ```bash
 claude mcp add sf-mcp -- uvx sf-mcp
-# Optional: pin a specific org alias for this MCP client. Otherwise sf-mcp
-# uses SF_TARGET_ORG or the alias from `sf config get target-org`.
+```
+
+By default, every tool call takes a `target_org` argument naming the alias to use, so the MCP works against whichever org you ask for at call time — no global pin required. Optionally, pin a default for this client:
+
+```bash
 claude mcp add sf-mcp --env SF_MCP_ALIAS=my-org -- uvx sf-mcp
 ```
 
@@ -44,16 +47,13 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
   "mcpServers": {
     "sf-mcp": {
       "command": "uvx",
-      "args": ["sf-mcp"],
-      "env": {
-        "SF_MCP_ALIAS": "my-org"
-      }
+      "args": ["sf-mcp"]
     }
   }
 }
 ```
 
-A copy of this config lives at [`examples/claude_desktop_config.json`](examples/claude_desktop_config.json).
+A copy of this config lives at [`examples/claude_desktop_config.json`](examples/claude_desktop_config.json). To pin a default org alias for this client, add `"env": { "SF_MCP_ALIAS": "my-org" }`.
 
 #### Cursor
 
@@ -64,16 +64,13 @@ Add to `~/.cursor/mcp.json` (or your workspace's `.cursor/mcp.json`):
   "mcpServers": {
     "sf-mcp": {
       "command": "uvx",
-      "args": ["sf-mcp"],
-      "env": {
-        "SF_MCP_ALIAS": "my-org"
-      }
+      "args": ["sf-mcp"]
     }
   }
 }
 ```
 
-A copy lives at [`examples/cursor_config.json`](examples/cursor_config.json).
+A copy lives at [`examples/cursor_config.json`](examples/cursor_config.json). To pin a default org alias for this client, add `"env": { "SF_MCP_ALIAS": "my-org" }`.
 
 #### Codex CLI
 
@@ -83,20 +80,19 @@ Add to `~/.codex/config.toml`:
 [mcp_servers.sf-mcp]
 command = "uvx"
 args = ["sf-mcp"]
-
-[mcp_servers.sf-mcp.env]
-SF_MCP_ALIAS = "my-org"
 ```
+
+To pin a default org alias for this client, add `[mcp_servers.sf-mcp.env]\nSF_MCP_ALIAS = "my-org"`.
 
 ## Tools
 
-Every tool accepts an optional `target_org` argument. Resolution order when it's omitted:
+Every tool takes an optional `target_org` argument naming the alias to operate against. The expected default usage is to ask for an org per call — _"list every account in `qlabs`"_, _"deploy this to `dev_99christian`"_ — and let the MCP route to the matching `sf` CLI session.
 
-1. `SF_MCP_ALIAS` env var (explicit MCP-side override)
+If you'd rather not pass `target_org` every time, sf-mcp falls back through this chain when it's omitted:
+
+1. `SF_MCP_ALIAS` env var (set on the MCP client process)
 2. `SF_TARGET_ORG` env var (`sf` CLI's own standard)
 3. `target-org` from the project-local `.sf/config.json` or the global `~/.sf/config.json` — i.e. whatever `sf config get target-org` would return
-
-So if you've already run `sf config set target-org=my-org`, you don't need to set anything for sf-mcp.
 
 ### sf CLI (`sf_*`)
 

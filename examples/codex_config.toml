@@ -1,6 +1,3 @@
 [mcp_servers.sf-mcp]
 command = "uvx"
 args = ["sf-mcp"]
-
-[mcp_servers.sf-mcp.env]
-SF_MCP_ALIAS = "my-org"
